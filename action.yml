@@ -1,5 +1,5 @@
-name: Artifact Pages registry
-description: Reconcile the Artifact Pages site registry with the sites declared in the admin deployment config.
+name: Artifact Pages registry sync
+description: Reconcile the complete Artifact Pages site registry with the admin deployment config.
 author: artifact-pages
 branding:
   icon: list
@@ -7,6 +7,10 @@ branding:
 inputs:
   config:
     description: Optional deployment config path or github:// config locator.
+    required: false
+    default: ""
+  cli-version:
+    description: Override the config CLI pin with an exact supported release; compatibility checks still run.
     required: false
     default: ""
   github-token:
@@ -30,7 +34,7 @@ inputs:
     required: false
     default: auto
   fetch-depth:
-    description: "fetch-depth for the Action's own checkout. 1 (the default) is a shallow checkout; `registry register` reads no Git history. Ignored when no checkout runs."
+    description: "fetch-depth for the Action's own checkout. 1 (the default) is a shallow checkout; `registry sync` reads no Git history. Ignored when no checkout runs."
     required: false
     default: "1"
 outputs:
@@ -38,7 +42,7 @@ outputs:
     description: CLI operation name.
     value: ${{ steps.cli.outputs.operation }}
   outcome:
-    description: "CLI outcome string: planned, registered, no-op, or failed."
+    description: "CLI outcome string: planned, synced, no-op, or failed."
     value: ${{ steps.cli.outputs.outcome }}
   registry-updated:
     description: JSON boolean rendered as true or false when present.
@@ -71,19 +75,24 @@ runs:
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
         persist-credentials: false
-    - name: Install the CLI that matches this Action version
+    - name: Install the bootstrap CLI
       id: install
       shell: bash
       env:
-        ARTIFACT_PAGES_TOKEN: ${{ github.token }}
+        ARTIFACT_PAGES_ACTION_KIND: registry
+        ARTIFACT_PAGES_INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        ARTIFACT_PAGES_INPUT_SUMMARY: ${{ inputs.summary }}
+        ARTIFACT_PAGES_DOWNLOAD_TOKEN: ${{ github.token }}
       run: node "$GITHUB_ACTION_PATH/scripts/prebuilt-cli.mjs" --action-root "$GITHUB_ACTION_PATH"
-    - name: Register the configured sites
+    - name: Sync the configured sites
       id: cli
       shell: bash
       working-directory: ${{ github.workspace }}
       env:
         ARTIFACT_PAGES_CLI: ${{ runner.temp }}/artifact-pages
         ARTIFACT_PAGES_ACTION_KIND: registry
+        ARTIFACT_PAGES_INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        ARTIFACT_PAGES_DOWNLOAD_TOKEN: ${{ github.token }}
         ARTIFACT_PAGES_INPUT_CONFIG: ${{ inputs.config }}
         ARTIFACT_PAGES_INPUT_DRY_RUN: ${{ inputs.dry-run }}
         ARTIFACT_PAGES_INPUT_SUMMARY: ${{ inputs.summary }}
